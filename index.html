@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sand</title>
+        <link rel="stylesheet" href="style.css">
+		<script src="main.js" defer></script>
+    </head>
+    <body>
+        <span id="credit">Original code from <a href="https://github.com/Slin">Slin</a></span>
+        <canvas id="renderer" width="480" height="320"></canvas>
+        <nav id="radius">
+            <input type="range" id="radius-slider" min="2" max="30" value="8">
+        </nav>
+		<nav>
+			<button id="sand" class="type-btn active">Sand</button>
+			<button id="water" class="type-btn">Water</button>
+			<button id="dirt" class="type-btn">Dirt</button>
+			<button id="stone" class="type-btn">Stone</button>
+			<button id="erase" class="type-btn">Erase</button>
+		</nav>
+    </body>
+</html>
