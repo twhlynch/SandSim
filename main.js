@@ -1,13 +1,21 @@
 const canvas = document.getElementById("renderer");
 const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+
+const SCALE = 2;
+
+canvas.width = Math.floor(window.innerWidth / SCALE);
+canvas.height = Math.floor(window.innerHeight / SCALE);
+
+const radiusSlider = document.getElementById('radius');
+const eraseButton = document.getElementById('erase');
+const speedButton = document.getElementById('speed');
 
 let isMouseDown = false;
 let mousePosition = { x: 0, y: 0 };
 let color = { h: 0, s: 1, v: 0.8 };
 let erase = false;
-let radius = 1;
+let speed = 1;
+let radius = parseInt(radiusSlider.value);
 
 let imageData = new ImageData(canvas.width, canvas.height);
 let newImageData = new ImageData(canvas.width, canvas.height);
@@ -39,7 +47,6 @@ function getRGB() {
 }
 
 function draw() {
-  // TODO: circle
   const { x, y } = mousePosition;
   let { r, g, b } = getRGB();
   let a = 255;
@@ -53,14 +60,22 @@ function draw() {
 
   for (let dx = -radius; dx <= radius; dx++) {
     for (let dy = -radius; dy <= radius; dy++) {
-      const index = (x + dx + (y + dy) * canvas.width) * 4;
+      const nx = x + dx;
+      const ny = y + dy;
+
+      const distance = Math.sqrt(dx**2 + dy**2);
 
       if (
-        index < 0 ||
-        index >= canvas.width * canvas.height * 4
+        nx < 0 ||
+        ny < 0 ||
+        nx >= canvas.width ||
+        ny >= canvas.height ||
+        distance > radius
       ) {
         continue;
       }
+
+      const index = (nx + ny * canvas.width) * 4;
 
       imageData.data[index] = r;
       imageData.data[index + 1] = g;
@@ -94,18 +109,23 @@ function update() {
       continue;
     }
 
+    const x = i % canvas.width;
+
     const downIndex = index + canvas.width * 4;
     const downRightIndex = index + canvas.width * 4 + 4;
     const downLeftIndex = index + canvas.width * 4 - 4;
 
     if (isEmpty(downIndex)) {
       set(downIndex, index);
-    } else if (isEmpty(downLeftIndex) && isEmpty(downRightIndex)) {
+    } else if (
+      x != 0 && isEmpty(downLeftIndex) && 
+      x != canvas.width - 1 && isEmpty(downRightIndex)
+    ) {
       const randomIndex = Math.random() >= 0.5 ? downLeftIndex : downRightIndex;
       set(randomIndex, index);
-    } else if (isEmpty(downLeftIndex)) {
+    } else if (x != 0 && isEmpty(downLeftIndex)) {
       set(downLeftIndex, index);
-    } else if (isEmpty(downRightIndex)) {
+    } else if (x != canvas.width - 1 && isEmpty(downRightIndex)) {
       set(downRightIndex, index);
     } else {
       set(index, index);
@@ -115,8 +135,6 @@ function update() {
   imageData.data.set(newImageData.data);
 }
 
-const radiusSlider = document.getElementById('radius');
-const eraseButton = document.getElementById('erase');
 radiusSlider.addEventListener('change', (e) => {
   radius = parseInt(e.target.value);
 });
@@ -124,29 +142,33 @@ eraseButton.addEventListener('click', () => {
   erase = !erase;
   eraseButton.className = erase ? 'active' : '';
 });
+speedButton.addEventListener('click', () => {
+  speed = speed === 1 ? 2 : 1;
+  speedButton.innerText = speed + 'x';
+});
 
-canvas.addEventListener('mousemove', function(event) {
-  mousePosition.x = event.clientX;
-  mousePosition.y = event.clientY;
+window.addEventListener('mousemove', function(event) {
+  mousePosition.x = Math.floor(event.clientX / SCALE);
+  mousePosition.y = Math.floor(event.clientY / SCALE);
   if (isMouseDown) draw();
 });
-canvas.addEventListener('touchmove', (e) => {
+window.addEventListener('touchmove', (e) => {
   e.preventDefault();
-  mousePosition.x = e.touches[0].clientX;
-  mousePosition.y = e.touches[0].clientY;
+  mousePosition.x = Math.floor(e.touches[0].clientX / SCALE);
+  mousePosition.y = Math.floor(e.touches[0].clientY / SCALE);
   if (isMouseDown) draw();
 });
 
 canvas.addEventListener('mousedown', (e) => {
-  mousePosition.x = e.clientX;
-  mousePosition.y = e.clientY;
+  mousePosition.x = Math.floor(e.clientX / SCALE);
+  mousePosition.y = Math.floor(e.clientY / SCALE);
   isMouseDown = true;
   draw();
 });
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
-  mousePosition.x = e.touches[0].clientX;
-  mousePosition.y = e.touches[0].clientY;
+  mousePosition.x = Math.floor(e.touches[0].clientX / SCALE);
+  mousePosition.y = Math.floor(e.touches[0].clientY / SCALE);
   isMouseDown = true;
   draw();
 });
@@ -163,7 +185,10 @@ function render() {
   
   ctx.putImageData(imageData, 0, 0);
   
-  update();
+
+  for (let i = 0; i < speed; i++) {
+    update();
+  }
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
