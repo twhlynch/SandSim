@@ -1,209 +1,169 @@
-let canvas = document.getElementById("renderer");
-let context = canvas.getContext("2d");
-let velocityData = new Array(2 * canvas.width * canvas.height);
+const canvas = document.getElementById("renderer");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
 let isMouseDown = false;
 let mousePosition = { x: 0, y: 0 };
-let type = "sand";
-let radius = 8;
-const colors = {
-  sand: {red: 242, green: 209, blue: 107, alpha: 255},
-  water: {red: 115, green: 182, blue: 254, alpha: 255},
-  erase: {red: 0, green: 0, blue: 0, alpha: 0},
-  stone: {red: 128, green: 128, blue: 128, alpha: 255},
-  dirt: {red: 114, green: 93, blue: 76, alpha: 255},
-};
+let color = { h: 0, s: 1, v: 0.8 };
+let erase = false;
+let radius = 1;
 
-function drawParticles(posX, posY) {
-  let color = colors[type];
+let imageData = new ImageData(canvas.width, canvas.height);
+let newImageData = new ImageData(canvas.width, canvas.height);
 
-  const oldImageData = context.getImageData(posX - radius, posY - radius, 2 * radius, 2 * radius);
-  let imageData = context.createImageData(2 * radius, 2 * radius);
-  for(let y = 0; y < 2 * radius; y += 1) {
-    for(let x = 0; x < 2 * radius; x += 1) {
-      if((x - radius) * (x - radius) + (y - radius) * (y - radius) < radius * radius) {
-        imageData.data[4 * (x + y * 2 * radius) + 0] = color.red;
-        imageData.data[4 * (x + y * 2 * radius) + 1] = color.green;
-        imageData.data[4 * (x + y * 2 * radius) + 2] = color.blue;
-        imageData.data[4 * (x + y * 2 * radius) + 3] = color.alpha;
-      } else {
-        imageData.data[4 * (x + y * 2 * radius) + 0] = oldImageData.data[4 * (x + y * 2 * radius) + 0];
-        imageData.data[4 * (x + y * 2 * radius) + 1] = oldImageData.data[4 * (x + y * 2 * radius) + 1];
-        imageData.data[4 * (x + y * 2 * radius) + 2] = oldImageData.data[4 * (x + y * 2 * radius) + 2];
-        imageData.data[4 * (x + y * 2 * radius) + 3] = oldImageData.data[4 * (x + y * 2 * radius) + 3];
+function getRGB() {
+  let r, g, b;
+  let { h, s, v } = color;
+
+  let _i, _f, _p, _q, _t;
+  _i = Math.floor(h * 6);
+  _f = h * 6 - _i;
+  _p = v * (1 - s);
+  _q = v * (1 - _f * s);
+  _t = v * (1 - (1 - _f) * s);
+  switch (_i % 6) {
+      case 0: r = v, g = _t, b = _p; break;
+      case 1: r = _q, g = v, b = _p; break;
+      case 2: r = _p, g = v, b = _t; break;
+      case 3: r = _p, g = _q, b = v; break;
+      case 4: r = _t, g = _p, b = v; break;
+      case 5: r = v, g = _p, b = _q; break;
+  }
+
+  r *= 255;
+  g *= 255;
+  b *= 255;
+
+  return { r, g, b };
+}
+
+function draw() {
+  // TODO: circle
+  const { x, y } = mousePosition;
+  let { r, g, b } = getRGB();
+  let a = 255;
+
+  if (erase) {
+    r = 0;
+    g = 0;
+    b = 0;
+    a = 0;
+  }
+
+  for (let dx = -radius; dx <= radius; dx++) {
+    for (let dy = -radius; dy <= radius; dy++) {
+      const index = (x + dx + (y + dy) * canvas.width) * 4;
+
+      if (
+        index < 0 ||
+        index >= canvas.width * canvas.height * 4
+      ) {
+        continue;
       }
+
+      imageData.data[index] = r;
+      imageData.data[index + 1] = g;
+      imageData.data[index + 2] = b;
+      imageData.data[index + 3] = a;
     }
   }
 
-  context.putImageData(imageData, posX-radius, posY-radius);
+  color.h += 0.001;
+  if (color.h > 1) color.h = 0;
 }
 
-function updateParticles() {
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
-  for(let y = canvas.height - 1; y >= 0; y -= 1) {
-    let didMoveRight = false;
-    let didMoveLeft = false;
-    for(let x = 0; x < canvas.width; x += 1) {
-      let currentIndex = (x + y * canvas.width) * 4;
-      let belowIndex = currentIndex + canvas.width * 4;
-      let leftIndex = currentIndex - 4;
-      let rightIndex = currentIndex + 4;
-      let leftBelowIndex = belowIndex - 4;
-      let rightBelowIndex = belowIndex + 4;
+function isEmpty(index) {
+  if (imageData.data[index + 3] === 0) {
+    return true;
+  }
+  return false;
+}
+function set(newIndex, oldIndex) {
+  newImageData.data[newIndex] = imageData.data[oldIndex];
+  newImageData.data[newIndex + 1] = imageData.data[oldIndex + 1];
+  newImageData.data[newIndex + 2] = imageData.data[oldIndex + 2];
+  newImageData.data[newIndex + 3] = imageData.data[oldIndex + 3];
+}
+function update() {
+  newImageData = new ImageData(canvas.width, canvas.height);
 
-      let newIndex = currentIndex;
-      let swapPixels = false;
+  for (let i = 0; i < canvas.width * canvas.height; i++) {
+    const index = i * 4;
+    if (isEmpty(index)) {
+      continue;
+    }
 
-      if(data[currentIndex + 3] == 255) {
-        if(!didMoveRight) {
-          if(belowIndex < data.length && data[belowIndex + 3] == 0) {
-            //Try to move down
-            newIndex = belowIndex;
-            didMoveLeft = false;
-          } else if(belowIndex < data.length && data[belowIndex + 3] == 255 && data[currentIndex + 2] != 254 && data[belowIndex + 2] == 254) {
-            //Let sand push away water
-            swapPixels = true;
-            newIndex = belowIndex;
-            didMoveLeft = false;
-          } else {
-            if(x > 0 && leftBelowIndex < data.length && data[leftIndex + 3] == 0 && data[leftBelowIndex + 3] == 0) {
-              //Try to move left below
-              newIndex = leftBelowIndex;
-              didMoveLeft = false;
-            } else if(x < canvas.width - 1 && rightBelowIndex < data.length && data[rightIndex + 3] == 0 && data[rightBelowIndex + 3] == 0) {
-              //Try to move right below
-              newIndex = rightBelowIndex;
-              didMoveLeft = false;
-            } else if(data[currentIndex + 2] == 254) {
-              //Is water
-              var canMoveLeft = false;
-              var canMoveRight = false;
+    const downIndex = index + canvas.width * 4;
+    const downRightIndex = index + canvas.width * 4 + 4;
+    const downLeftIndex = index + canvas.width * 4 - 4;
 
-              //Try to move left
-              if(x > 0 && data[leftIndex + 3] == 0) {
-                if(!didMoveLeft) {
-                  canMoveLeft = true;
-                } else {
-                  didMoveLeft = false;
-                }
-              }
-
-              //Try to move right
-              if(x < canvas.width - 1 && data[rightIndex + 3] == 0) {
-                canMoveRight = true;
-              }
-
-              if (canMoveRight && canMoveLeft) {
-                let choice = (Math.random() > 0.5);
-                if(choice) {
-                  canMoveLeft = false;
-                }
-              }
-              if(canMoveLeft) {
-                newIndex = leftIndex;
-                didMoveLeft = true;
-              } else if(canMoveRight) {
-                newIndex = rightIndex;
-                didMoveRight = true;
-                didMoveLeft = false;
-              }
-            }
-          }
-
-          if(newIndex != currentIndex) {
-            let r = data[newIndex + 0];
-            let g = data[newIndex + 1];
-            let b = data[newIndex + 2];
-            let a = data[newIndex + 3];
-
-            data[newIndex + 0] = data[currentIndex + 0];
-            data[newIndex + 1] = data[currentIndex + 1];
-            data[newIndex + 2] = data[currentIndex + 2];
-            data[newIndex + 3] = data[currentIndex + 3];
-
-            if(swapPixels) {
-              data[currentIndex + 0] = r;
-              data[currentIndex + 1] = g;
-              data[currentIndex + 2] = b;
-              data[currentIndex + 3] = a;
-            } else {
-              data[currentIndex + 0] = 0;
-              data[currentIndex + 1] = 0;
-              data[currentIndex + 2] = 0;
-              data[currentIndex + 3] = 0;
-            }
-          }
-        } else {
-          didMoveRight = false;
-        }
-      } else {
-        didMoveLeft = false;
-      }
+    if (isEmpty(downIndex)) {
+      set(downIndex, index);
+    } else if (isEmpty(downLeftIndex) && isEmpty(downRightIndex)) {
+      const randomIndex = Math.random() >= 0.5 ? downLeftIndex : downRightIndex;
+      set(randomIndex, index);
+    } else if (isEmpty(downLeftIndex)) {
+      set(downLeftIndex, index);
+    } else if (isEmpty(downRightIndex)) {
+      set(downRightIndex, index);
+    } else {
+      set(index, index);
     }
   }
-  context.putImageData(imageData, 0, 0);
-}
 
-const typeButtons = document.querySelectorAll('.type-btn');
-typeButtons.forEach(button => {
-  button.addEventListener('click', (e) => {
-    type = e.target.id;
-    document.querySelector('.active').classList.remove('active');
-    e.target.classList.add('active');
-  });
-});
+  imageData.data.set(newImageData.data);
+}
 
 const radiusSlider = document.getElementById('radius');
+const eraseButton = document.getElementById('erase');
 radiusSlider.addEventListener('change', (e) => {
-  radius = e.target.value;
+  radius = parseInt(e.target.value);
+});
+eraseButton.addEventListener('click', () => {
+  erase = !erase;
+  eraseButton.className = erase ? 'active' : '';
 });
 
 canvas.addEventListener('mousemove', function(event) {
-  mousePosition.x = event.layerX;
-  mousePosition.y = event.layerY;
-  if (isMouseDown) {
-    drawParticles(event.layerX, event.layerY);
-  }
+  mousePosition.x = event.clientX;
+  mousePosition.y = event.clientY;
+  if (isMouseDown) draw();
+});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  mousePosition.x = e.touches[0].clientX;
+  mousePosition.y = e.touches[0].clientY;
+  if (isMouseDown) draw();
 });
 
 canvas.addEventListener('mousedown', (e) => {
-    mousePosition.x = e.layerX;
-    mousePosition.y = e.layerY;
-    isMouseDown = true;
+  mousePosition.x = e.clientX;
+  mousePosition.y = e.clientY;
+  isMouseDown = true;
+  draw();
 });
-
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
-  mousePosition.x = e.layerX;
-  mousePosition.y = e.layerY;
+  mousePosition.x = e.touches[0].clientX;
+  mousePosition.y = e.touches[0].clientY;
   isMouseDown = true;
-});
-
-canvas.addEventListener('touchmove', (e) => {
-  e.preventDefault();
-  mousePosition.x = e.layerX;
-  mousePosition.y = e.layerY;
-  if (isMouseDown) {
-    drawParticles(e.layerX, e.layerY);
-  }
+  draw();
 });
 
 window.addEventListener('touchend', () => {
   isMouseDown = false;
 });
-
 window.addEventListener('mouseup', () => {
     isMouseDown = false;
 });
 
 function render() {
-
-  if(isMouseDown) {
-    drawParticles(mousePosition.x, mousePosition.y);
-  }
-
-  updateParticles();
-
-  window.requestAnimationFrame(render)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  ctx.putImageData(imageData, 0, 0);
+  
+  update();
+  requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
