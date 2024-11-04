@@ -14,18 +14,18 @@ const sandCounter = document.getElementById('counter');
 
 let isMouseDown = false;
 let mousePosition = { x: 0, y: 0 };
-let color = { h: 0, s: 1, v: 0.8 };
-let erase = false;
-let water = false;
+let color = { h: 0, s: 1, v: 0.7 };
+let type = "rainbow";
 let speed = 1;
+let waterBlue = 255;
 let radius = parseInt(radiusSlider.value);
 let sandCount = 0;
 let turn = true;
 
 let imageData = new ImageData(canvas.width, canvas.height);
 
-const WIDTH = canvas.width * 4;
-const HEIGHT = canvas.height * 4;
+let WIDTH = canvas.width * 4;
+let HEIGHT = canvas.height * 4;
 
 function getRGB() {
   let r, g, b;
@@ -54,11 +54,15 @@ function draw() {
   let { r, g, b } = getRGB();
   let a = 255;
 
-  if (erase) {
+  if (type == "erase") {
     r = 0;
     g = 0;
     b = 0;
     a = 0;
+  } else if (type == "water") {
+    r = 0;
+    g = 0;
+    b = waterBlue;
   }
 
   const rSquared = radius * radius;
@@ -156,7 +160,7 @@ function move(index, i) {
     }
   }
 
-  if (water) {
+  if (imageData.data[index + 2] == waterBlue) {
     const rightIndex = index + 4;
     const leftIndex = index - 4;
 
@@ -211,17 +215,20 @@ function update() {
 radiusSlider.addEventListener('change', (e) => {
   radius = parseInt(e.target.value);
 });
-eraseButton.addEventListener('click', () => {
-  erase = !erase;
-  eraseButton.className = erase ? 'active' : '';
-});
 speedButton.addEventListener('click', () => {
   speed = speed === 2 ? 1 : speed + 1;
   speedButton.innerText = speed + 'x';
 });
-waterButton.addEventListener('click', () => {
-  water = !water;
-  waterButton.className = water ? 'active' : '';
+
+const typeButtons = document.querySelectorAll('.type-btn');
+typeButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    type = btn.id;
+    typeButtons.forEach(btn => {
+      btn.classList.remove('active');
+    });
+    btn.classList.add('active');
+  });
 });
 
 window.addEventListener('mousemove', function(event) {
@@ -257,10 +264,41 @@ window.addEventListener('mouseup', () => {
     isMouseDown = false;
 });
 
+window.addEventListener('resize', () => {
+  let oldWidth = canvas.width;
+  let oldHeight = canvas.height;
+
+  canvas.width = Math.floor(window.innerWidth / SCALE);
+  canvas.height = Math.floor(window.innerHeight / SCALE);
+
+  let newImageData = new ImageData(canvas.width, canvas.height);
+
+  for (let i = 0; i < oldWidth * oldHeight; i++) {
+    let ox = i % oldWidth;
+    let oy = Math.floor(i / oldWidth);
+
+    if (ox < canvas.width && oy < canvas.height) {
+      let index = (ox + oy * canvas.width) * 4;
+      newImageData.data.set(
+        imageData.data.slice(i * 4, i * 4 + 4), 
+        index
+      );
+    }
+  }
+
+  imageData = newImageData;
+
+  isMouseDown = false;
+
+  WIDTH = canvas.width * 4;
+  HEIGHT = canvas.height * 4;
+});
+
 function render() {
   for (let i = 0; i < speed * 2; i++) {
     update();
   }
+  if (isMouseDown) draw();
 
   sandCounter.innerText = sandCount + ' pixels';
 

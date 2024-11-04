@@ -30,13 +30,20 @@ menu {
   align-items: center;
   justify-content: center;
   position: absolute;
-  gap: 15px;
+  gap: 10px;
   width: 100svw;
-  bottom: 15px;
   margin-inline: auto;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
+  margin-block: 10px;
+}
+
+#top {
+  top: 0;
+}
+#bottom {
+  bottom: 0;
 }
 
 menu input {
@@ -77,9 +84,6 @@ menu button.active {
 }
 
 #counter {
-  position: absolute;
-  top: 5px;
-  right: 5px;
   font-size: 18px;
   color: #fff;
   user-select: none;
