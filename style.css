@@ -75,3 +75,15 @@ menu button:hover {
 menu button.active {
   background: #070;
 }
+
+#counter {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 18px;
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}

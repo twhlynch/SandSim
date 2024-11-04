@@ -9,16 +9,23 @@ canvas.height = Math.floor(window.innerHeight / SCALE);
 const radiusSlider = document.getElementById('radius');
 const eraseButton = document.getElementById('erase');
 const speedButton = document.getElementById('speed');
+const waterButton = document.getElementById('water');
+const sandCounter = document.getElementById('counter');
 
 let isMouseDown = false;
 let mousePosition = { x: 0, y: 0 };
 let color = { h: 0, s: 1, v: 0.8 };
 let erase = false;
+let water = false;
 let speed = 1;
 let radius = parseInt(radiusSlider.value);
+let sandCount = 0;
+let turn = true;
 
 let imageData = new ImageData(canvas.width, canvas.height);
-let newImageData = new ImageData(canvas.width, canvas.height);
+
+const WIDTH = canvas.width * 4;
+const HEIGHT = canvas.height * 4;
 
 function getRGB() {
   let r, g, b;
@@ -31,19 +38,15 @@ function getRGB() {
   _q = v * (1 - _f * s);
   _t = v * (1 - (1 - _f) * s);
   switch (_i % 6) {
-      case 0: r = v, g = _t, b = _p; break;
-      case 1: r = _q, g = v, b = _p; break;
-      case 2: r = _p, g = v, b = _t; break;
-      case 3: r = _p, g = _q, b = v; break;
-      case 4: r = _t, g = _p, b = v; break;
-      case 5: r = v, g = _p, b = _q; break;
+    case 0: r = v, g = _t, b = _p; break;
+    case 1: r = _q, g = v, b = _p; break;
+    case 2: r = _p, g = v, b = _t; break;
+    case 3: r = _p, g = _q, b = v; break;
+    case 4: r = _t, g = _p, b = v; break;
+    case 5: r = v, g = _p, b = _q; break;
   }
 
-  r *= 255;
-  g *= 255;
-  b *= 255;
-
-  return { r, g, b };
+  return { r: r * 255, g: g * 255, b: b * 255 };
 }
 
 function draw() {
@@ -58,29 +61,29 @@ function draw() {
     a = 0;
   }
 
+  const rSquared = radius * radius;
+
   for (let dx = -radius; dx <= radius; dx++) {
     for (let dy = -radius; dy <= radius; dy++) {
+
+      if (dx * dx + dy * dy > rSquared) continue;
+
       const nx = x + dx;
       const ny = y + dy;
 
-      const distance = Math.sqrt(dx**2 + dy**2);
-
       if (
-        nx < 0 ||
-        ny < 0 ||
-        nx >= canvas.width ||
-        ny >= canvas.height ||
-        distance > radius
+        nx < 0 || nx >= canvas.width ||
+        ny < 0 || ny >= canvas.height
       ) {
         continue;
       }
 
       const index = (nx + ny * canvas.width) * 4;
 
-      imageData.data[index] = r;
-      imageData.data[index + 1] = g;
-      imageData.data[index + 2] = b;
-      imageData.data[index + 3] = a;
+      imageData.data.set(
+        [ r, g, b, a ], 
+        index
+      );
     }
   }
 
@@ -89,50 +92,120 @@ function draw() {
 }
 
 function isEmpty(index) {
-  if (imageData.data[index + 3] === 0) {
-    return true;
-  }
-  return false;
+  return (
+    imageData.data[index + 3] === 0
+  );
 }
 function set(newIndex, oldIndex) {
-  newImageData.data[newIndex] = imageData.data[oldIndex];
-  newImageData.data[newIndex + 1] = imageData.data[oldIndex + 1];
-  newImageData.data[newIndex + 2] = imageData.data[oldIndex + 2];
-  newImageData.data[newIndex + 3] = imageData.data[oldIndex + 3];
+  const data = [
+    imageData.data[oldIndex],
+    imageData.data[oldIndex + 1],
+    imageData.data[oldIndex + 2],
+    turn ? 255 : 254
+  ];
+
+  imageData.data.set(
+    [0, 0, 0, 0], 
+    oldIndex
+  );
+  imageData.data.set(
+    data, 
+    newIndex
+  );
 }
-function update() {
-  newImageData = new ImageData(canvas.width, canvas.height);
+function move(index, i) {
+  const x = i % canvas.width;
+  const y = Math.floor(i / canvas.width);
 
-  for (let i = 0; i < canvas.width * canvas.height; i++) {
-    const index = i * 4;
-    if (isEmpty(index)) {
-      continue;
-    }
+  const canGoDown = y != canvas.height - 1;
+  const canGoLeft = x != 0;
+  const canGoRight = x != canvas.width - 1;
 
-    const x = i % canvas.width;
+  const downIndex = index + WIDTH;
+  const downRightIndex = downIndex + 4;
+  const downLeftIndex = downIndex - 4;
 
-    const downIndex = index + canvas.width * 4;
-    const downRightIndex = index + canvas.width * 4 + 4;
-    const downLeftIndex = index + canvas.width * 4 - 4;
-
+  if (canGoDown) {
+    // down
     if (isEmpty(downIndex)) {
       set(downIndex, index);
-    } else if (
-      x != 0 && isEmpty(downLeftIndex) && 
-      x != canvas.width - 1 && isEmpty(downRightIndex)
+      return true;
+    }
+    // down right or down left
+    if (
+      canGoLeft && isEmpty(downLeftIndex) && 
+      canGoRight && isEmpty(downRightIndex)
     ) {
       const randomIndex = Math.random() >= 0.5 ? downLeftIndex : downRightIndex;
       set(randomIndex, index);
-    } else if (x != 0 && isEmpty(downLeftIndex)) {
+      return true;
+    }
+    // down left
+    if (
+      canGoLeft && isEmpty(downLeftIndex)
+    ) {
       set(downLeftIndex, index);
-    } else if (x != canvas.width - 1 && isEmpty(downRightIndex)) {
+      return true;
+    }
+    // down right
+    if (
+      canGoRight && isEmpty(downRightIndex)
+    ) {
       set(downRightIndex, index);
-    } else {
-      set(index, index);
+      return true;
     }
   }
 
-  imageData.data.set(newImageData.data);
+  if (water) {
+    const rightIndex = index + 4;
+    const leftIndex = index - 4;
+
+    // right or left
+    if (
+      canGoLeft && isEmpty(leftIndex) &&
+      canGoRight && isEmpty(rightIndex)
+    ) {
+      const randomIndex = Math.random() >= 0.5 ? leftIndex : rightIndex;
+      set(randomIndex, index);
+      return true;
+    }
+    // left
+    if (canGoLeft && isEmpty(leftIndex)) {
+      set(leftIndex, index);
+      return true;
+    }
+    // right
+    if (canGoRight && isEmpty(rightIndex)) {
+      set(rightIndex, index);
+      return true;
+    }
+  }
+
+  return false;
+}
+function update() {
+  turn = !turn;
+  sandCount = 0;
+
+  const pixels = canvas.width * canvas.height;
+  for (let i = 0; i < pixels; i++) {
+    let j = i;
+    if (turn) {
+      const col = i % canvas.width;
+      j = i - col + canvas.width - 1 - col;
+    }
+
+    const index = j * 4;
+    if (
+      imageData.data[index + 3] === 0 ||
+      imageData.data[index + 3] === (turn ? 255 : 254)
+    ) continue;
+
+    sandCount++;
+    if(!move(index, j)) {
+      set(index, index);
+    }
+  }
 }
 
 radiusSlider.addEventListener('change', (e) => {
@@ -143,8 +216,12 @@ eraseButton.addEventListener('click', () => {
   eraseButton.className = erase ? 'active' : '';
 });
 speedButton.addEventListener('click', () => {
-  speed = speed === 1 ? 2 : 1;
+  speed = speed === 2 ? 1 : speed + 1;
   speedButton.innerText = speed + 'x';
+});
+waterButton.addEventListener('click', () => {
+  water = !water;
+  waterButton.className = water ? 'active' : '';
 });
 
 window.addEventListener('mousemove', function(event) {
@@ -181,14 +258,15 @@ window.addEventListener('mouseup', () => {
 });
 
 function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  ctx.putImageData(imageData, 0, 0);
-  
-
-  for (let i = 0; i < speed; i++) {
+  for (let i = 0; i < speed * 2; i++) {
     update();
   }
+
+  sandCounter.innerText = sandCount + ' pixels';
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.putImageData(imageData, 0, 0);
+  
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
